@@ -56,14 +56,10 @@ export default function AgentsPage() {
     if (!newTeamName.trim()) return
 
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error('Not authenticated')
-
       const { error: insertError } = await supabase
         .from('teams')
         .insert([{ 
-          name: newTeamName,
-          user_id: user.id 
+          name: newTeamName
         }])
 
       if (insertError) throw insertError
