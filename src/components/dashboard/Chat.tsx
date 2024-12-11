@@ -35,7 +35,7 @@ export default function Chat() {
   const [isLoadingModels, setIsLoadingModels] = useState(false)
 
   useEffect(() => {
-    const fetchModels = async (provider: string) => {
+    const fetchModelsFromApi = async (provider: string) => {
       try {
         const response = await fetch(`/api/providers/models?provider=${provider}`)
         
@@ -51,31 +51,30 @@ export default function Chat() {
         }
 
         // Filter and map the models
-        const validModels = data.models.filter((model: any) => 
+        return data.models.filter((model: any) => 
           model && model.id && typeof model.id === 'string'
         )
-
-        return validModels
       } catch (error) {
         console.error('Error fetching models:', error)
         throw error
       }
     }
 
-    const fetchModels = async () => {
+    const loadModels = async () => {
       setIsLoadingModels(true)
       try {
-        const models = await fetchModels(selectedProvider.id)
+        const models = await fetchModelsFromApi(selectedProvider.id)
         setModels(models)
         setSelectedModel(models[0])
       } catch (err) {
         console.error('Error fetching models:', err)
+        setError(err instanceof Error ? err.message : 'Failed to load models')
       } finally {
         setIsLoadingModels(false)
       }
     }
 
-    fetchModels()
+    loadModels()
   }, [selectedProvider])
 
   const handleSubmit = async (e: React.FormEvent) => {
