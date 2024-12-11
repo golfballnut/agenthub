@@ -21,6 +21,7 @@ interface Agent {
 export default function AgentsPage() {
   const [teams, setTeams] = useState<Team[]>([])
   const [newTeamName, setNewTeamName] = useState('')
+  const [newAgentNames, setNewAgentNames] = useState<{ [key: string]: string }>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const supabase = createClientComponentClient()
@@ -69,6 +70,34 @@ export default function AgentsPage() {
     } catch (err) {
       console.error('Error creating team:', err)
       setError('Failed to create team')
+    }
+  }
+
+  const handleCreateAgent = async (teamId: string, e: React.FormEvent) => {
+    e.preventDefault()
+    const agentName = newAgentNames[teamId]
+    if (!agentName?.trim()) return
+
+    try {
+      const { error: insertError } = await supabase
+        .from('agents')
+        .insert([{ 
+          name: agentName,
+          team_id: teamId
+        }])
+
+      if (insertError) throw insertError
+
+      // Clear the input for this team
+      setNewAgentNames(prev => ({
+        ...prev,
+        [teamId]: ''
+      }))
+      
+      fetchTeams()
+    } catch (err) {
+      console.error('Error creating agent:', err)
+      setError('Failed to create agent')
     }
   }
 
@@ -133,9 +162,11 @@ export default function AgentsPage() {
               <h3 className="text-lg font-medium text-white mb-4">
                 {team.name}
               </h3>
-              {team.agents && team.agents.length > 0 ? (
-                <div className="space-y-3">
-                  {team.agents.map((agent) => (
+
+              {/* Agents List */}
+              <div className="space-y-3 mb-4">
+                {team.agents && team.agents.length > 0 ? (
+                  team.agents.map((agent) => (
                     <div
                       key={agent.id}
                       className="flex items-center gap-3 bg-white/5 rounded-lg p-3"
@@ -145,11 +176,35 @@ export default function AgentsPage() {
                       </div>
                       <span className="text-white/80">{agent.name}</span>
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-white/40">No agents in this team yet</p>
-              )}
+                  ))
+                ) : (
+                  <p className="text-white/40">No agents in this team yet</p>
+                )}
+              </div>
+
+              {/* Create Agent Form */}
+              <form 
+                onSubmit={(e) => handleCreateAgent(team.id, e)} 
+                className="flex gap-4 mt-4 pt-4 border-t border-white/5"
+              >
+                <input
+                  type="text"
+                  value={newAgentNames[team.id] || ''}
+                  onChange={(e) => setNewAgentNames(prev => ({
+                    ...prev,
+                    [team.id]: e.target.value
+                  }))}
+                  placeholder="Enter agent name"
+                  className="flex-1 bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-[#FFBE1A] focus:border-transparent"
+                />
+                <button
+                  type="submit"
+                  className="bg-white/5 text-white px-4 py-2 rounded-lg hover:bg-white/10 transition-colors flex items-center gap-2"
+                >
+                  <PlusIcon className="w-5 h-5" />
+                  Add Agent
+                </button>
+              </form>
             </div>
           ))
         )}
