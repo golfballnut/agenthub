@@ -21,7 +21,13 @@ interface Integration {
 interface MockData {
   products?: Array<{ id: number; name: string; price: number }>
   tasks?: Array<{ id: number; title: string; status: string }>
-  contacts?: Array<{ id: number; name: string; email: string }>
+  contacts?: Array<{
+    id: string
+    name: string
+    email: string
+    company?: string
+    phone?: string
+  }>
   videos?: Array<{ id: string; title: string; views: number; likes: number }>
   proxies?: Array<{ id: string; region: string; status: string; bandwidth: string }>
 }
@@ -104,12 +110,21 @@ export default function IntegrationsPage() {
     setError(null)
 
     try {
-      const response = await fetch('/api/integrations/mock-data', {
+      // Use real HubSpot API for HubSpot integration
+      const endpoint = integration.name.toLowerCase() === 'hubspot'
+        ? '/api/integrations/hubspot'
+        : '/api/integrations/mock-data'
+
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ source: integration.name }),
+        body: JSON.stringify(
+          integration.name.toLowerCase() === 'hubspot'
+            ? { integrationId: integration.id }
+            : { source: integration.name }
+        ),
       })
 
       const data = await response.json()
@@ -118,8 +133,8 @@ export default function IntegrationsPage() {
       
       setMockData(prev => ({ ...prev, [integration.id]: data }))
     } catch (err) {
-      console.error('Error fetching mock data:', err)
-      setError('Failed to fetch data')
+      console.error('Error fetching data:', err)
+      setError(err instanceof Error ? err.message : 'Failed to fetch data')
     } finally {
       setLoadingData(prev => ({ ...prev, [integration.id]: false }))
     }
