@@ -11,6 +11,7 @@ import {
   DocumentTextIcon,
   Cog6ToothIcon,
   Square3Stack3DIcon,
+  CommandLineIcon,
 } from '@heroicons/react/24/outline'
 import Header from '@/components/dashboard/Header'
 
@@ -25,6 +26,7 @@ const navigation: NavItem[] = [
   { name: 'Analytics', href: '/dashboard/analytics', icon: ChartBarIcon },
   { name: 'Agents', href: '/dashboard/agents', icon: UserCircleIcon },
   { name: 'Integrations', href: '/dashboard/integrations', icon: Square3Stack3DIcon },
+  { name: 'Scraping', href: '/dashboard/scraping', icon: CommandLineIcon },
   { name: 'Profile', href: '/dashboard/profile', icon: UserCircleIcon },
   { name: 'Documents', href: '/dashboard/documents', icon: DocumentTextIcon },
   { name: 'Settings', href: '/dashboard/settings', icon: Cog6ToothIcon },

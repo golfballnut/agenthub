@@ -1,18 +1,53 @@
 'use client'
 
 import { useState } from 'react'
-import { PaperAirplaneIcon } from '@heroicons/react/24/outline'
+import { PaperAirplaneIcon, ChevronDownIcon } from '@heroicons/react/24/outline'
 
 interface Message {
   role: 'user' | 'assistant'
   content: string
 }
 
+interface Provider {
+  id: string
+  name: string
+  models: { id: string; name: string }[]
+}
+
+const providers: Provider[] = [
+  {
+    id: 'openai',
+    name: 'OpenAI',
+    models: [
+      { id: 'gpt-4', name: 'GPT-4' },
+      { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo' },
+    ],
+  },
+  {
+    id: 'claude',
+    name: 'Claude',
+    models: [
+      { id: 'claude-2', name: 'Claude 2' },
+      { id: 'claude-instant', name: 'Claude Instant' },
+    ],
+  },
+  {
+    id: 'perplexity',
+    name: 'Perplexity',
+    models: [
+      { id: 'pplx-latest', name: 'Latest' },
+      { id: 'pplx-experimental', name: 'Experimental' },
+    ],
+  },
+]
+
 export default function Chat() {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [selectedProvider, setSelectedProvider] = useState(providers[0])
+  const [selectedModel, setSelectedModel] = useState(providers[0].models[0])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -59,9 +94,50 @@ export default function Chat() {
     <div className="bg-[#111111] border border-white/5 rounded-xl h-[600px] flex flex-col">
       {/* Chat Header */}
       <div className="p-4 border-b border-white/5">
-        <h2 className="text-lg font-medium text-white">AI Chat</h2>
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="text-lg font-medium text-white">AI Chat</h2>
+          <div className="flex items-center gap-2 text-sm">
+            <div className="relative">
+              <select
+                value={selectedProvider.id}
+                onChange={(e) => {
+                  const provider = providers.find(p => p.id === e.target.value)
+                  if (provider) {
+                    setSelectedProvider(provider)
+                    setSelectedModel(provider.models[0])
+                  }
+                }}
+                className="appearance-none bg-white/5 border border-white/10 rounded-lg px-3 py-1 text-white pr-8 focus:outline-none focus:ring-1 focus:ring-[#FFBE1A]"
+              >
+                {providers.map((provider) => (
+                  <option key={provider.id} value={provider.id}>
+                    {provider.name}
+                  </option>
+                ))}
+              </select>
+              <ChevronDownIcon className="w-4 h-4 text-white/40 absolute right-2 top-1/2 transform -translate-y-1/2 pointer-events-none" />
+            </div>
+            <div className="relative">
+              <select
+                value={selectedModel.id}
+                onChange={(e) => {
+                  const model = selectedProvider.models.find(m => m.id === e.target.value)
+                  if (model) setSelectedModel(model)
+                }}
+                className="appearance-none bg-white/5 border border-white/10 rounded-lg px-3 py-1 text-white pr-8 focus:outline-none focus:ring-1 focus:ring-[#FFBE1A]"
+              >
+                {selectedProvider.models.map((model) => (
+                  <option key={model.id} value={model.id}>
+                    {model.name}
+                  </option>
+                ))}
+              </select>
+              <ChevronDownIcon className="w-4 h-4 text-white/40 absolute right-2 top-1/2 transform -translate-y-1/2 pointer-events-none" />
+            </div>
+          </div>
+        </div>
         <p className="text-sm text-white/60">
-          Each message costs 1 credit
+          Chat with AI
         </p>
       </div>
 
@@ -102,6 +178,24 @@ export default function Chat() {
             </div>
           </div>
         )}
+      </div>
+
+      {/* Usage Stats */}
+      <div className="px-4 py-3 border-t border-white/5 bg-white/5">
+        <div className="grid grid-cols-3 gap-4 text-sm">
+          <div>
+            <div className="text-white/40">Messages today</div>
+            <div className="text-white font-medium">50</div>
+          </div>
+          <div>
+            <div className="text-white/40">Avg. response time</div>
+            <div className="text-white font-medium">2.3s</div>
+          </div>
+          <div>
+            <div className="text-white/40">Active projects</div>
+            <div className="text-white font-medium">3</div>
+          </div>
+        </div>
       </div>
 
       {/* Error Message */}
