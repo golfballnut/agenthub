@@ -4,23 +4,28 @@ import { NextResponse } from 'next/server'
 import { POST } from './route'
 
 // Mock the dependencies
-jest.mock('@supabase/auth-helpers-nextjs')
-jest.mock('next/headers')
+jest.mock('@supabase/auth-helpers-nextjs', () => ({
+  createRouteHandlerClient: jest.fn()
+}))
+
+jest.mock('next/headers', () => ({
+  cookies: jest.fn()
+}))
 
 describe('Mock Data API Route', () => {
   beforeEach(() => {
-    // Reset mocks
     jest.clearAllMocks()
     
     // Setup default mocks
-    ;(createRouteHandlerClient as jest.Mock).mockReturnValue({
+    const mockSupabase = {
       auth: {
         getUser: jest.fn().mockResolvedValue({
           data: { user: { id: 'test-user' } },
           error: null,
         }),
       },
-    })
+    }
+    ;(createRouteHandlerClient as jest.Mock).mockReturnValue(mockSupabase)
   })
 
   it('returns 400 if source is missing', async () => {
@@ -51,14 +56,15 @@ describe('Mock Data API Route', () => {
   })
 
   it('returns 401 if user is not authenticated', async () => {
-    ;(createRouteHandlerClient as jest.Mock).mockReturnValue({
+    const mockSupabase = {
       auth: {
         getUser: jest.fn().mockResolvedValue({
           data: { user: null },
           error: null,
         }),
       },
-    })
+    }
+    ;(createRouteHandlerClient as jest.Mock).mockReturnValue(mockSupabase)
 
     const request = new Request('http://localhost', {
       method: 'POST',

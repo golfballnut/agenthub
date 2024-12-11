@@ -2,74 +2,127 @@ import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import OpenAI from 'openai'
+import { Anthropic } from '@anthropic-ai/sdk'
 
+// Initialize API clients
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+  apiKey: process.env.PROVIDER_OPENAI_API_KEY,
 })
 
-export async function POST(req: Request) {
-  try {
-    const supabase = createRouteHandlerClient({ cookies })
-    const { messages } = await req.json()
+const anthropic = new Anthropic({
+  apiKey: process.env.PROVIDER_CLAUDE_API_KEY,
+})
 
-    // Check authentication
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
+interface ChatRequest {
+  messages: { role: string; content: string }[]
+  provider: string
+  model: string
+}
+
+function isOpenAIChatModel(modelId: string): boolean {
+  return modelId.startsWith('gpt-') || modelId.includes('turbo')
+}
+
+export async function POST(request: Request) {
+  try {
+    // Validate request body
+    const body = await request.json() as ChatRequest
+    if (!body.messages?.length || !body.provider || !body.model) {
+      return NextResponse.json(
+        { error: 'Missing required fields' },
+        { status: 400 }
+      )
+    }
+
+    // Authenticate user
+    const supabase = createRouteHandlerClient({ cookies })
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
       )
     }
 
-    // Check if user has enough credits
-    const { data: credits, error: creditsError } = await supabase
-      .from('user_credits')
-      .select('credits')
-      .eq('user_id', user.id)
-      .single()
+    // Handle different providers
+    let response
+    switch (body.provider) {
+      case 'openai':
+        if (!process.env.PROVIDER_OPENAI_API_KEY) {
+          throw new Error('OpenAI API key not configured')
+        }
 
-    if (creditsError) {
-      console.error('Error fetching credits:', creditsError)
-      return NextResponse.json(
-        { error: 'Error checking credits' },
-        { status: 500 }
-      )
+        if (isOpenAIChatModel(body.model)) {
+          // Use chat completions for GPT models
+          response = await openai.chat.completions.create({
+            model: body.model,
+            messages: body.messages,
+          })
+          return NextResponse.json({
+            role: 'assistant',
+            content: response.choices[0].message.content,
+          })
+        } else {
+          // Use completions for other models
+          response = await openai.completions.create({
+            model: body.model,
+            prompt: body.messages[body.messages.length - 1].content,
+            max_tokens: 1000,
+          })
+          return NextResponse.json({
+            role: 'assistant',
+            content: response.choices[0].text,
+          })
+        }
+
+      case 'claude':
+        if (!process.env.PROVIDER_CLAUDE_API_KEY) {
+          throw new Error('Claude API key not configured')
+        }
+        response = await anthropic.messages.create({
+          model: body.model,
+          max_tokens: 1000,
+          messages: body.messages.map(msg => ({
+            role: msg.role === 'user' ? 'user' : 'assistant',
+            content: msg.content,
+          })) as { role: 'user' | 'assistant'; content: string }[],
+        })
+        return NextResponse.json({
+          role: 'assistant',
+          content: response.content[0].type === 'text' ? response.content[0].text : '',
+        })
+
+      case 'perplexity':
+        if (!process.env.PROVIDER_PERPLEXITY_API_KEY) {
+          throw new Error('Perplexity API key not configured')
+        }
+        response = await fetch('https://api.perplexity.ai/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${process.env.PROVIDER_PERPLEXITY_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: body.model,
+            messages: body.messages,
+          }),
+        })
+        const data = await response.json()
+        return NextResponse.json({
+          role: 'assistant',
+          content: data.choices[0].message.content,
+        })
+
+      default:
+        return NextResponse.json(
+          { error: 'Unsupported provider' },
+          { status: 400 }
+        )
     }
-
-    if (!credits || credits.credits < 1) {
-      return NextResponse.json(
-        { error: 'Insufficient credits' },
-        { status: 402 }
-      )
-    }
-
-    // Make request to OpenAI
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4',
-      messages: messages,
-      temperature: 0.7,
-      max_tokens: 1000,
-    })
-
-    // Deduct credits
-    const { error: updateError } = await supabase
-      .from('user_credits')
-      .update({
-        credits: credits.credits - 1,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('user_id', user.id)
-
-    if (updateError) {
-      console.error('Error updating credits:', updateError)
-      // Continue anyway since we've already made the API call
-    }
-
-    return NextResponse.json(completion.choices[0].message)
   } catch (error) {
-    console.error('Error in chat route:', error)
+    console.error('Chat API error:', error)
     return NextResponse.json(
-      { error: 'Error processing request' },
+      { error: error instanceof Error ? error.message : 'Failed to process chat request' },
       { status: 500 }
     )
   }

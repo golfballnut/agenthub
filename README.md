@@ -151,3 +151,21 @@ If you have any questions or need help, please open an issue or contact us at su
 ---
 
 Built with ❤️ by [Your Name]
+
+## Setup Instructions
+
+### Database Setup
+1. Run the migrations in `supabase/migrations/` to create required tables
+2. Verify RLS policies are enabled for the profiles table
+3. Test user signup flow creates a profile automatically
+
+### Environment Variables
+Required variables:
+- `PROVIDER_OPENAI_API_KEY`: OpenAI API key
+- `PROVIDER_CLAUDE_API_KEY`: Anthropic Claude API key
+- `PROVIDER_PERPLEXITY_API_KEY`: Perplexity API key
+
+### Chat Models
+- Models are fetched dynamically from each provider
+- Only chat-compatible models are shown in the UI
+- Each provider may have different model requirements

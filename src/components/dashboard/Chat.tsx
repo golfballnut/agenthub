@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { PaperAirplaneIcon, ChevronDownIcon } from '@heroicons/react/24/outline'
 
 interface Message {
@@ -8,37 +8,20 @@ interface Message {
   content: string
 }
 
+interface Model {
+  id: string
+  name: string
+}
+
 interface Provider {
   id: string
   name: string
-  models: { id: string; name: string }[]
 }
 
 const providers: Provider[] = [
-  {
-    id: 'openai',
-    name: 'OpenAI',
-    models: [
-      { id: 'gpt-4', name: 'GPT-4' },
-      { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo' },
-    ],
-  },
-  {
-    id: 'claude',
-    name: 'Claude',
-    models: [
-      { id: 'claude-2', name: 'Claude 2' },
-      { id: 'claude-instant', name: 'Claude Instant' },
-    ],
-  },
-  {
-    id: 'perplexity',
-    name: 'Perplexity',
-    models: [
-      { id: 'pplx-latest', name: 'Latest' },
-      { id: 'pplx-experimental', name: 'Experimental' },
-    ],
-  },
+  { id: 'openai', name: 'OpenAI' },
+  { id: 'claude', name: 'Claude' },
+  { id: 'perplexity', name: 'Perplexity' },
 ]
 
 export default function Chat() {
@@ -47,11 +30,61 @@ export default function Chat() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [selectedProvider, setSelectedProvider] = useState(providers[0])
-  const [selectedModel, setSelectedModel] = useState(providers[0].models[0])
+  const [selectedModel, setSelectedModel] = useState<Model | null>(null)
+  const [models, setModels] = useState<Model[]>([])
+  const [isLoadingModels, setIsLoadingModels] = useState(false)
+
+  useEffect(() => {
+    const fetchModels = async (provider: string) => {
+      try {
+        const response = await fetch(`/api/providers/models?provider=${provider}`)
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`)
+        }
+        
+        const data = await response.json()
+        
+        // Ensure we have a valid array of models from the API
+        if (!Array.isArray(data.models)) {
+          throw new Error('Invalid models data received from API')
+        }
+
+        // Filter and map the models
+        const validModels = data.models.filter((model: any) => 
+          model && model.id && typeof model.id === 'string'
+        )
+
+        return validModels
+      } catch (error) {
+        console.error('Error fetching models:', error)
+        throw error
+      }
+    }
+
+    const fetchModels = async () => {
+      setIsLoadingModels(true)
+      try {
+        const models = await fetchModels(selectedProvider.id)
+        setModels(models)
+        setSelectedModel(models[0])
+      } catch (err) {
+        console.error('Error fetching models:', err)
+      } finally {
+        setIsLoadingModels(false)
+      }
+    }
+
+    fetchModels()
+  }, [selectedProvider])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!input.trim() || isLoading) return
+    if (!selectedModel) {
+      setError('Please select a model first')
+      return
+    }
 
     setIsLoading(true)
     setError(null)
@@ -72,12 +105,17 @@ export default function Chat() {
         },
         body: JSON.stringify({
           messages: newMessages,
+          provider: selectedProvider.id,
+          model: selectedModel.id,
         }),
       })
 
       const data = await response.json()
 
       if (!response.ok) {
+        if (data.error?.includes('not supported in the v1/chat/completions')) {
+          throw new Error('This model does not support chat. Please select a chat-compatible model.')
+        }
         throw new Error(data.error || 'Error processing request')
       }
 
@@ -104,7 +142,7 @@ export default function Chat() {
                   const provider = providers.find(p => p.id === e.target.value)
                   if (provider) {
                     setSelectedProvider(provider)
-                    setSelectedModel(provider.models[0])
+                    setSelectedModel(null)
                   }
                 }}
                 className="appearance-none bg-white/5 border border-white/10 rounded-lg px-3 py-1 text-white pr-8 focus:outline-none focus:ring-1 focus:ring-[#FFBE1A]"
@@ -118,21 +156,33 @@ export default function Chat() {
               <ChevronDownIcon className="w-4 h-4 text-white/40 absolute right-2 top-1/2 transform -translate-y-1/2 pointer-events-none" />
             </div>
             <div className="relative">
-              <select
-                value={selectedModel.id}
-                onChange={(e) => {
-                  const model = selectedProvider.models.find(m => m.id === e.target.value)
-                  if (model) setSelectedModel(model)
-                }}
-                className="appearance-none bg-white/5 border border-white/10 rounded-lg px-3 py-1 text-white pr-8 focus:outline-none focus:ring-1 focus:ring-[#FFBE1A]"
-              >
-                {selectedProvider.models.map((model) => (
-                  <option key={model.id} value={model.id}>
-                    {model.name}
-                  </option>
-                ))}
-              </select>
-              <ChevronDownIcon className="w-4 h-4 text-white/40 absolute right-2 top-1/2 transform -translate-y-1/2 pointer-events-none" />
+              {isLoadingModels ? (
+                <div className="h-8 flex items-center text-white/40">
+                  Loading models...
+                </div>
+              ) : models.length > 0 ? (
+                <select
+                  value={selectedModel?.id || ''}
+                  onChange={(e) => {
+                    const model = models.find(m => m.id === e.target.value)
+                    if (model) setSelectedModel(model)
+                  }}
+                  className="appearance-none bg-white/5 border border-white/10 rounded-lg px-3 py-1 text-white pr-8 focus:outline-none focus:ring-1 focus:ring-[#FFBE1A]"
+                >
+                  {models.map((model) => (
+                    <option key={model.id} value={model.id}>
+                      {model.name}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <div className="h-8 flex items-center text-white/40">
+                  No models available
+                </div>
+              )}
+              {models.length > 0 && (
+                <ChevronDownIcon className="w-4 h-4 text-white/40 absolute right-2 top-1/2 transform -translate-y-1/2 pointer-events-none" />
+              )}
             </div>
           </div>
         </div>
