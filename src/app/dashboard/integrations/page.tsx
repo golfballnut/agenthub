@@ -5,7 +5,8 @@ import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { 
   ArrowPathIcon,
   CheckCircleIcon,
-  XCircleIcon
+  XCircleIcon,
+  DocumentArrowDownIcon
 } from '@heroicons/react/24/outline'
 import Link from 'next/link'
 
@@ -17,11 +18,21 @@ interface Integration {
   last_connected_at: string | null
 }
 
+interface MockData {
+  products?: Array<{ id: number; name: string; price: number }>
+  tasks?: Array<{ id: number; title: string; status: string }>
+  contacts?: Array<{ id: number; name: string; email: string }>
+  videos?: Array<{ id: string; title: string; views: number; likes: number }>
+  proxies?: Array<{ id: string; region: string; status: string; bandwidth: string }>
+}
+
 export default function IntegrationsPage() {
   const [integrations, setIntegrations] = useState<Integration[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [updating, setUpdating] = useState<string | null>(null)
+  const [mockData, setMockData] = useState<{ [key: string]: MockData | null }>({})
+  const [loadingData, setLoadingData] = useState<{ [key: string]: boolean }>({})
   const supabase = createClientComponentClient()
 
   const fetchIntegrations = async () => {
@@ -86,6 +97,126 @@ export default function IntegrationsPage() {
     } finally {
       setUpdating(null)
     }
+  }
+
+  const fetchMockData = async (integration: Integration) => {
+    setLoadingData(prev => ({ ...prev, [integration.id]: true }))
+    setError(null)
+
+    try {
+      const response = await fetch('/api/integrations/mock-data', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ source: integration.name }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) throw new Error(data.error)
+      
+      setMockData(prev => ({ ...prev, [integration.id]: data }))
+    } catch (err) {
+      console.error('Error fetching mock data:', err)
+      setError('Failed to fetch data')
+    } finally {
+      setLoadingData(prev => ({ ...prev, [integration.id]: false }))
+    }
+  }
+
+  const renderMockData = (data: MockData) => {
+    if (data.products) {
+      return (
+        <div className="mt-4 bg-white/5 rounded-lg p-4">
+          <h4 className="text-sm font-medium text-white mb-2">Products</h4>
+          <div className="space-y-2">
+            {data.products.map(product => (
+              <div key={product.id} className="text-sm text-white/60">
+                {product.name} - ${product.price}
+              </div>
+            ))}
+          </div>
+        </div>
+      )
+    }
+
+    if (data.tasks) {
+      return (
+        <div className="mt-4 bg-white/5 rounded-lg p-4">
+          <h4 className="text-sm font-medium text-white mb-2">Tasks</h4>
+          <div className="space-y-2">
+            {data.tasks.map(task => (
+              <div key={task.id} className="text-sm text-white/60">
+                {task.title} - {task.status}
+              </div>
+            ))}
+          </div>
+        </div>
+      )
+    }
+
+    if (data.contacts) {
+      return (
+        <div className="mt-4 bg-white/5 rounded-lg p-4">
+          <h4 className="text-sm font-medium text-white mb-2">Contacts</h4>
+          <div className="space-y-2">
+            {data.contacts.map(contact => (
+              <div key={contact.id} className="text-sm text-white/60">
+                {contact.name} - {contact.email}
+              </div>
+            ))}
+          </div>
+        </div>
+      )
+    }
+
+    if (data.videos) {
+      return (
+        <div className="mt-4 bg-white/5 rounded-lg p-4">
+          <h4 className="text-sm font-medium text-white mb-2">Videos</h4>
+          <div className="space-y-2">
+            {data.videos.map(video => (
+              <div key={video.id} className="text-sm text-white/60">
+                <div>{video.title}</div>
+                <div className="text-xs text-white/40">
+                  {video.views.toLocaleString()} views • {video.likes.toLocaleString()} likes
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )
+    }
+
+    if (data.proxies) {
+      return (
+        <div className="mt-4 bg-white/5 rounded-lg p-4">
+          <h4 className="text-sm font-medium text-white mb-2">Proxies</h4>
+          <div className="space-y-2">
+            {data.proxies.map(proxy => (
+              <div key={proxy.id} className="text-sm text-white/60">
+                <div className="flex items-center justify-between">
+                  <span>{proxy.region}</span>
+                  <span className={`px-2 py-0.5 rounded-full text-xs ${
+                    proxy.status === 'active' 
+                      ? 'bg-green-500/10 text-green-500' 
+                      : 'bg-red-500/10 text-red-500'
+                  }`}>
+                    {proxy.status}
+                  </span>
+                </div>
+                <div className="text-xs text-white/40">
+                  Bandwidth used: {proxy.bandwidth}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )
+    }
+
+    return null
   }
 
   if (loading) {
@@ -170,6 +301,27 @@ export default function IntegrationsPage() {
                 </Link>
               </div>
             </div>
+
+            {integration.connected && (
+              <div className="mt-4 pt-4 border-t border-white/5">
+                <button
+                  onClick={() => fetchMockData(integration)}
+                  disabled={loadingData[integration.id]}
+                  className="w-full px-4 py-2 rounded-lg font-medium transition-colors flex items-center justify-center gap-2 bg-white/5 text-white hover:bg-white/10 disabled:opacity-50"
+                >
+                  {loadingData[integration.id] ? (
+                    <ArrowPathIcon className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <>
+                      <DocumentArrowDownIcon className="w-5 h-5" />
+                      Fetch Data
+                    </>
+                  )}
+                </button>
+
+                {mockData[integration.id] && renderMockData(mockData[integration.id]!)}
+              </div>
+            )}
           </div>
         ))}
       </div>

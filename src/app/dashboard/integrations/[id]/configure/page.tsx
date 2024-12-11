@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
 import { ArrowPathIcon, CheckCircleIcon, XCircleIcon } from '@heroicons/react/24/outline'
-import { useRouter } from 'next/navigation'
+import { useRouter, useParams } from 'next/navigation'
 
 interface Integration {
   id: string
@@ -11,14 +11,9 @@ interface Integration {
   connected: boolean
 }
 
-interface PageProps {
-  params: {
-    id: string
-  }
-}
-
-export default function ConfigureIntegration({ params }: PageProps) {
-  const { id } = params
+export default function ConfigureIntegration() {
+  const params = useParams()
+  const id = params.id as string
   const [integration, setIntegration] = useState<Integration | null>(null)
   const [apiKey, setApiKey] = useState('')
   const [loading, setLoading] = useState(true)
@@ -30,7 +25,9 @@ export default function ConfigureIntegration({ params }: PageProps) {
   const supabase = createClientComponentClient()
 
   useEffect(() => {
-    fetchIntegration()
+    if (id) {
+      fetchIntegration()
+    }
   }, [id])
 
   const fetchIntegration = async () => {
