@@ -22,6 +22,7 @@ interface NavItem {
 const navigation: NavItem[] = [
   { name: 'Overview', href: '/dashboard', icon: HomeIcon },
   { name: 'Analytics', href: '/dashboard/analytics', icon: ChartBarIcon },
+  { name: 'Agents', href: '/dashboard/agents', icon: UserCircleIcon },
   { name: 'Profile', href: '/dashboard/profile', icon: UserCircleIcon },
   { name: 'Documents', href: '/dashboard/documents', icon: DocumentTextIcon },
   { name: 'Settings', href: '/dashboard/settings', icon: Cog6ToothIcon },
