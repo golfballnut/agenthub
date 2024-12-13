@@ -14,6 +14,15 @@ export type Database = {
           updated_at: string
         }
       }
+      chat_messages: {
+        Row: {
+          id: string
+          user_id: string
+          role: 'user' | 'assistant'
+          content: string
+          created_at: string
+        }
+      }
       profiles: {
         Row: {
           id: string

@@ -1,5 +1,19 @@
 -- Create tables
 DO $$ BEGIN
+  -- Create teams table first
+  CREATE TABLE IF NOT EXISTS teams (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name TEXT NOT NULL,
+    description TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    owner_id UUID REFERENCES auth.users(id) NOT NULL
+  );
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
   -- Create llm_models table if not exists
   CREATE TABLE IF NOT EXISTS llm_models (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),

@@ -16,6 +16,7 @@ jest.mock('next/headers', () => ({
 
 describe('Agents API Routes', () => {
   const mockUser = { id: 'test-user-id' }
+  const mockTeam = { id: 'test-team-id', name: 'Test Team' }
   let mockSupabase: any
 
   beforeEach(() => {
@@ -43,7 +44,11 @@ describe('Agents API Routes', () => {
     it('should create an agent successfully', async () => {
       // Mock successful agent creation
       mockSupabase.single.mockResolvedValue({
-        data: { id: 'test-agent-id', name: 'Test Agent' },
+        data: { 
+          id: 'test-agent-id', 
+          name: 'Test Agent',
+          team_id: mockTeam.id
+        },
         error: null
       })
 
@@ -51,7 +56,7 @@ describe('Agents API Routes', () => {
         method: 'POST',
         body: JSON.stringify({
           name: 'Test Agent',
-          team_id: 'test-team-id',
+          team_id: mockTeam.id,
           description: 'Test Description'
         })
       })
@@ -62,7 +67,8 @@ describe('Agents API Routes', () => {
       expect(response.status).toBe(200)
       expect(data).toEqual({
         id: 'test-agent-id',
-        name: 'Test Agent'
+        name: 'Test Agent',
+        team_id: mockTeam.id
       })
     })
 
@@ -86,7 +92,7 @@ describe('Agents API Routes', () => {
         method: 'POST',
         body: JSON.stringify({
           name: 'Test Agent',
-          team_id: 'test-team-id'
+          team_id: mockTeam.id
         })
       })
 
@@ -121,7 +127,7 @@ describe('Agents API Routes', () => {
       const request = new Request('http://localhost/api/agents', {
         method: 'POST',
         body: JSON.stringify({
-          team_id: 'test-team-id',
+          team_id: mockTeam.id,
           description: 'Test Description'
           // Missing required 'name' field
         })

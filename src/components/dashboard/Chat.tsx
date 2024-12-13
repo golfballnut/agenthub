@@ -1,7 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { PaperAirplaneIcon, ChevronDownIcon } from '@heroicons/react/24/outline'
+import { Card } from '@/components/ui/card'
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import type { Database } from '@/types/supabase'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -11,269 +13,254 @@ interface Message {
 interface Model {
   id: string
   name: string
+  description: string
+  provider: string
 }
 
 interface Provider {
-  id: string
   name: string
+  models: Model[]
 }
-
-const providers: Provider[] = [
-  { id: 'openai', name: 'OpenAI' },
-  { id: 'claude', name: 'Claude' },
-  { id: 'perplexity', name: 'Perplexity' },
-]
 
 export default function Chat() {
   const [messages, setMessages] = useState<Message[]>([])
   const [input, setInput] = useState('')
+  const [providers, setProviders] = useState<Provider[]>([])
+  const [selectedProvider, setSelectedProvider] = useState<string>('openai')
+  const [selectedModel, setSelectedModel] = useState<string>('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [selectedProvider, setSelectedProvider] = useState(providers[0])
-  const [selectedModel, setSelectedModel] = useState<Model | null>(null)
-  const [models, setModels] = useState<Model[]>([])
-  const [isLoadingModels, setIsLoadingModels] = useState(false)
+  const [isLoadingModels, setIsLoadingModels] = useState(true)
+  const supabase = createClientComponentClient<Database>()
 
+  // Load chat history on mount
   useEffect(() => {
-    const fetchModelsFromApi = async (provider: string) => {
-      try {
-        const response = await fetch(`/api/providers/models?provider=${provider}`)
-        
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`)
-        }
-        
-        const data = await response.json()
-        
-        // Ensure we have a valid array of models from the API
-        if (!Array.isArray(data.models)) {
-          throw new Error('Invalid models data received from API')
-        }
-
-        // Filter and map the models
-        return data.models.filter((model: any) => 
-          model && model.id && typeof model.id === 'string'
-        )
-      } catch (error) {
-        console.error('Error fetching models:', error)
-        throw error
-      }
-    }
-
-    const loadModels = async () => {
-      setIsLoadingModels(true)
-      try {
-        const models = await fetchModelsFromApi(selectedProvider.id)
-        setModels(models)
-        setSelectedModel(models[0])
-      } catch (err) {
-        console.error('Error fetching models:', err)
-        setError(err instanceof Error ? err.message : 'Failed to load models')
-      } finally {
-        setIsLoadingModels(false)
-      }
-    }
-
+    loadChatHistory()
     loadModels()
-  }, [selectedProvider])
+  }, [])
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!input.trim() || isLoading) return
-    if (!selectedModel) {
-      setError('Please select a model first')
-      return
-    }
-
-    setIsLoading(true)
-    setError(null)
-
-    const newMessages = [
-      ...messages,
-      { role: 'user', content: input.trim() } as Message
-    ]
-
-    setMessages(newMessages)
-    setInput('')
-
+  async function loadChatHistory() {
     try {
+      const { data: messages, error } = await supabase
+        .from('chat_messages')
+        .select('*')
+        .order('created_at', { ascending: true })
+
+      if (error) throw error
+      if (messages) {
+        setMessages(messages.map(msg => ({
+          role: msg.role,
+          content: msg.content
+        })))
+      }
+    } catch (err) {
+      console.error('Error loading chat history:', err)
+      setError('Failed to load chat history')
+    }
+  }
+
+  async function loadModels() {
+    try {
+      setIsLoadingModels(true)
+      // Load models for each provider
+      const providers = ['openai', 'claude']
+      const providerData = await Promise.all(
+        providers.map(async (provider) => {
+          const response = await fetch(`/api/providers/models?provider=${provider}`)
+          if (!response.ok) throw new Error(`Failed to fetch ${provider} models`)
+          const data = await response.json()
+          return {
+            name: provider,
+            models: data.models
+          }
+        })
+      )
+
+      setProviders(providerData.filter(p => p.models.length > 0))
+      
+      // Set default provider and model
+      if (providerData.length > 0 && providerData[0].models.length > 0) {
+        setSelectedProvider(providerData[0].name)
+        setSelectedModel(providerData[0].models[0].id)
+      }
+    } catch (err) {
+      console.error('Error fetching models:', err)
+      setError('Failed to load models')
+    } finally {
+      setIsLoadingModels(false)
+    }
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!input.trim() || !selectedModel) return
+
+    const newMessage: Message = { role: 'user', content: input }
+    
+    try {
+      // Get current user
+      const { data: { user }, error: userError } = await supabase.auth.getUser()
+      if (userError || !user) {
+        setError('Authentication required')
+        return
+      }
+
+      // Save user message to database
+      const { error: saveError } = await supabase
+        .from('chat_messages')
+        .insert([{
+          role: 'user',
+          content: input,
+          user_id: user.id
+        }])
+
+      if (saveError) throw saveError
+
+      setMessages(prev => [...prev, newMessage])
+      setInput('')
+      setIsLoading(true)
+      setError(null)
+
+      // Send message to AI
       const response = await fetch('/api/ai/chat', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          messages: newMessages,
-          provider: selectedProvider.id,
-          model: selectedModel.id,
-        }),
+          messages: [...messages, newMessage],
+          model: selectedModel,
+          provider: selectedProvider
+        })
       })
 
+      if (!response.ok) throw new Error('Failed to get response')
+      
       const data = await response.json()
 
-      if (!response.ok) {
-        if (data.error?.includes('not supported in the v1/chat/completions')) {
-          throw new Error('This model does not support chat. Please select a chat-compatible model.')
-        }
-        throw new Error(data.error || 'Error processing request')
-      }
+      // Save AI response to database
+      const { error: saveResponseError } = await supabase
+        .from('chat_messages')
+        .insert([{
+          role: 'assistant',
+          content: data.content,
+          user_id: user.id
+        }])
 
-      setMessages([...newMessages, data])
+      if (saveResponseError) throw saveResponseError
+
+      setMessages(prev => [...prev, { role: 'assistant', content: data.content }])
     } catch (err) {
-      console.error('Error:', err)
-      setError(err instanceof Error ? err.message : 'Error sending message')
+      console.error('Chat error:', err)
+      setError('Failed to send message')
     } finally {
       setIsLoading(false)
     }
   }
 
   return (
-    <div className="bg-[#111111] border border-white/5 rounded-xl h-[600px] flex flex-col">
+    <Card className="flex flex-col h-[600px] bg-[#111111] border-white/5">
       {/* Chat Header */}
       <div className="p-4 border-b border-white/5">
-        <div className="flex items-center justify-between mb-2">
-          <h2 className="text-lg font-medium text-white">AI Chat</h2>
-          <div className="flex items-center gap-2 text-sm">
-            <div className="relative">
+        <h2 className="text-lg font-semibold text-white">AI Chat</h2>
+        <div className="mt-2 space-y-2">
+          {isLoadingModels ? (
+            <div className="text-white/60">Loading models...</div>
+          ) : (
+            <>
+              {/* Provider Selection */}
               <select
-                value={selectedProvider.id}
+                value={selectedProvider}
                 onChange={(e) => {
-                  const provider = providers.find(p => p.id === e.target.value)
-                  if (provider) {
-                    setSelectedProvider(provider)
-                    setSelectedModel(null)
+                  setSelectedProvider(e.target.value)
+                  const providerModels = providers.find(p => p.name === e.target.value)?.models ?? []
+                  if (providerModels.length > 0) {
+                    setSelectedModel(providerModels[0].id)
                   }
                 }}
-                className="appearance-none bg-white/5 border border-white/10 rounded-lg px-3 py-1 text-white pr-8 focus:outline-none focus:ring-1 focus:ring-[#FFBE1A]"
+                className="w-full bg-white/5 text-white border border-white/10 rounded-md p-2"
+                disabled={isLoadingModels}
               >
-                {providers.map((provider) => (
-                  <option key={provider.id} value={provider.id}>
-                    {provider.name}
+                {providers.map(provider => (
+                  <option key={provider.name} value={provider.name}>
+                    {provider.name.toUpperCase()}
                   </option>
                 ))}
               </select>
-              <ChevronDownIcon className="w-4 h-4 text-white/40 absolute right-2 top-1/2 transform -translate-y-1/2 pointer-events-none" />
-            </div>
-            <div className="relative">
-              {isLoadingModels ? (
-                <div className="h-8 flex items-center text-white/40">
-                  Loading models...
-                </div>
-              ) : models.length > 0 ? (
-                <select
-                  value={selectedModel?.id || ''}
-                  onChange={(e) => {
-                    const model = models.find(m => m.id === e.target.value)
-                    if (model) setSelectedModel(model)
-                  }}
-                  className="appearance-none bg-white/5 border border-white/10 rounded-lg px-3 py-1 text-white pr-8 focus:outline-none focus:ring-1 focus:ring-[#FFBE1A]"
-                >
-                  {models.map((model) => (
+
+              {/* Model Selection */}
+              <select
+                value={selectedModel}
+                onChange={(e) => setSelectedModel(e.target.value)}
+                className="w-full bg-white/5 text-white border border-white/10 rounded-md p-2"
+                disabled={isLoadingModels}
+              >
+                {providers
+                  .find(p => p.name === selectedProvider)
+                  ?.models.map(model => (
                     <option key={model.id} value={model.id}>
                       {model.name}
                     </option>
                   ))}
-                </select>
-              ) : (
-                <div className="h-8 flex items-center text-white/40">
-                  No models available
-                </div>
-              )}
-              {models.length > 0 && (
-                <ChevronDownIcon className="w-4 h-4 text-white/40 absolute right-2 top-1/2 transform -translate-y-1/2 pointer-events-none" />
-              )}
-            </div>
-          </div>
+              </select>
+            </>
+          )}
         </div>
-        <p className="text-sm text-white/60">
-          Chat with AI
-        </p>
       </div>
 
-      {/* Messages */}
+      {/* Messages Area */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.length === 0 ? (
-          <div className="text-center text-white/40 mt-8">
-            Start a conversation with AI
-          </div>
-        ) : (
-          messages.map((message, index) => (
+        {messages.map((message, index) => (
+          <div
+            key={index}
+            className={`flex ${
+              message.role === 'user' ? 'justify-end' : 'justify-start'
+            }`}
+          >
             <div
-              key={index}
-              className={`flex ${
-                message.role === 'user' ? 'justify-end' : 'justify-start'
+              className={`max-w-[80%] rounded-lg p-3 ${
+                message.role === 'user'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-white/5 text-white'
               }`}
             >
-              <div
-                className={`max-w-[80%] rounded-lg px-4 py-2 ${
-                  message.role === 'user'
-                    ? 'bg-[#FFBE1A] text-black'
-                    : 'bg-white/5 text-white'
-                }`}
-              >
-                <p className="whitespace-pre-wrap">{message.content}</p>
-              </div>
+              {message.content}
             </div>
-          ))
-        )}
+          </div>
+        ))}
         {isLoading && (
           <div className="flex justify-start">
-            <div className="bg-white/5 text-white rounded-lg px-4 py-2">
-              <div className="flex space-x-2">
-                <div className="w-2 h-2 bg-white/40 rounded-full animate-bounce" />
-                <div className="w-2 h-2 bg-white/40 rounded-full animate-bounce delay-100" />
-                <div className="w-2 h-2 bg-white/40 rounded-full animate-bounce delay-200" />
-              </div>
+            <div className="bg-white/5 text-white rounded-lg p-3">
+              Thinking...
+            </div>
+          </div>
+        )}
+        {error && (
+          <div className="flex justify-center">
+            <div className="bg-red-500/10 text-red-500 rounded-lg p-3">
+              {error}
             </div>
           </div>
         )}
       </div>
 
-      {/* Usage Stats */}
-      <div className="px-4 py-3 border-t border-white/5 bg-white/5">
-        <div className="grid grid-cols-3 gap-4 text-sm">
-          <div>
-            <div className="text-white/40">Messages today</div>
-            <div className="text-white font-medium">50</div>
-          </div>
-          <div>
-            <div className="text-white/40">Avg. response time</div>
-            <div className="text-white font-medium">2.3s</div>
-          </div>
-          <div>
-            <div className="text-white/40">Active projects</div>
-            <div className="text-white font-medium">3</div>
-          </div>
-        </div>
-      </div>
-
-      {/* Error Message */}
-      {error && (
-        <div className="px-4 py-2 bg-red-500/10 text-red-500 text-sm">
-          {error}
-        </div>
-      )}
-
-      {/* Input Form */}
+      {/* Input Area */}
       <form onSubmit={handleSubmit} className="p-4 border-t border-white/5">
-        <div className="flex space-x-4">
+        <div className="flex gap-2">
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Type your message..."
-            className="flex-1 bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-[#FFBE1A] focus:border-transparent"
-            disabled={isLoading}
+            className="flex-1 bg-white/5 text-white border border-white/10 rounded-md p-2"
           />
           <button
             type="submit"
             disabled={isLoading || !input.trim()}
-            className="bg-[#FFBE1A] text-black px-4 py-2 rounded-lg hover:bg-[#FFBE1A]/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="bg-blue-600 text-white px-4 py-2 rounded-md disabled:opacity-50"
           >
-            <PaperAirplaneIcon className="w-5 h-5" />
+            Send
           </button>
         </div>
       </form>
-    </div>
+    </Card>
   )
 } 
