@@ -3,6 +3,7 @@ import { cookies } from 'next/headers'
 import { NextResponse } from 'next/server'
 import OpenAI from 'openai'
 import { Anthropic } from '@anthropic-ai/sdk'
+import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions'
 
 // Initialize API clients
 const openai = new OpenAI({
@@ -20,7 +21,14 @@ interface ChatRequest {
 }
 
 function isOpenAIChatModel(modelId: string): boolean {
-  return modelId.startsWith('gpt-') || modelId.includes('turbo')
+  // Only include currently supported models
+  const supportedModels = [
+    'gpt-4-turbo-preview',
+    'gpt-4',
+    'gpt-3.5-turbo',
+    'gpt-3.5-turbo-16k'
+  ]
+  return supportedModels.includes(modelId)
 }
 
 export async function POST(request: Request) {
@@ -52,28 +60,25 @@ export async function POST(request: Request) {
           throw new Error('OpenAI API key not configured')
         }
 
-        if (isOpenAIChatModel(body.model)) {
-          // Use chat completions for GPT models
-          response = await openai.chat.completions.create({
-            model: body.model,
-            messages: body.messages,
-          })
-          return NextResponse.json({
-            role: 'assistant',
-            content: response.choices[0].message.content,
-          })
-        } else {
-          // Use completions for other models
-          response = await openai.completions.create({
-            model: body.model,
-            prompt: body.messages[body.messages.length - 1].content,
-            max_tokens: 1000,
-          })
-          return NextResponse.json({
-            role: 'assistant',
-            content: response.choices[0].text,
-          })
+        if (!isOpenAIChatModel(body.model)) {
+          return NextResponse.json(
+            { error: 'Selected model does not support chat or is not available' },
+            { status: 400 }
+          )
         }
+
+        response = await openai.chat.completions.create({
+          model: body.model,
+          messages: body.messages.map(m => ({
+            role: m.role as ChatCompletionMessageParam['role'],
+            content: m.content
+          }))
+        })
+
+        return NextResponse.json({
+          role: 'assistant',
+          content: response.choices[0].message.content
+        })
 
       case 'claude':
         if (!process.env.PROVIDER_CLAUDE_API_KEY) {

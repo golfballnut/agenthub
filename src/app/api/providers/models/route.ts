@@ -1,70 +1,70 @@
 import { NextResponse } from 'next/server'
+import OpenAI from 'openai'
+import Anthropic from '@anthropic-ai/sdk'
 
-const CHAT_MODEL_PREFIXES = ['gpt-3.5-turbo', 'gpt-4']
+// Initialize API clients
+const openai = new OpenAI({
+  apiKey: process.env.PROVIDER_OPENAI_API_KEY,
+})
 
-async function getProviderModels(provider: string) {
-  switch (provider) {
-    case 'openai': {
-      const response = await fetch('https://api.openai.com/v1/models', {
-        headers: {
-          'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
-        },
-      })
+const anthropic = new Anthropic({
+  apiKey: process.env.PROVIDER_CLAUDE_API_KEY,
+})
 
-      if (!response.ok) {
-        throw new Error('Failed to fetch OpenAI models')
-      }
-
-      const data = await response.json()
-      return data.data
-        .filter((model: any) => 
-          CHAT_MODEL_PREFIXES.some(prefix => model.id.startsWith(prefix))
-        )
-        .map((model: any) => ({
-          id: model.id,
-          name: model.id.replace('gpt-', 'GPT-').replace('-turbo', ' Turbo'),
-        }))
-    }
-    
-    case 'claude':
-      return [
-        { id: 'claude-2', name: 'Claude 2' },
-        { id: 'claude-instant', name: 'Claude Instant' }
-      ]
-      
-    case 'perplexity':
-      return [
-        { id: 'pplx-7b-chat', name: 'Perplexity 7B' },
-        { id: 'pplx-70b-chat', name: 'Perplexity 70B' }
-      ]
-
-    default:
-      throw new Error('Unsupported provider')
-  }
+// Helper to identify chat-compatible models
+function isOpenAIChatModel(modelId: string): boolean {
+  // Only include currently supported models
+  const supportedModels = [
+    'gpt-4-turbo-preview',
+    'gpt-4',
+    'gpt-3.5-turbo',
+    'gpt-3.5-turbo-16k'
+  ]
+  return supportedModels.includes(modelId)
 }
 
-export async function GET(request: Request) {
+export async function GET(req: Request) {
+  const { searchParams } = new URL(req.url)
+  const provider = searchParams.get('provider')
+
   try {
-    const { searchParams } = new URL(request.url)
-    const provider = searchParams.get('provider')
+    if (provider === 'openai') {
+      if (!process.env.PROVIDER_OPENAI_API_KEY) {
+        throw new Error('Missing PROVIDER_OPENAI_API_KEY')
+      }
 
-    if (!provider) {
-      return NextResponse.json(
-        { error: 'Provider parameter is required' },
-        { status: 400 }
-      )
+      // Use static list of supported models instead of API call
+      const models = [
+        { id: 'gpt-4-turbo-preview', name: 'GPT-4 Turbo' },
+        { id: 'gpt-4', name: 'GPT-4' },
+        { id: 'gpt-3.5-turbo', name: 'GPT-3.5 Turbo' },
+        { id: 'gpt-3.5-turbo-16k', name: 'GPT-3.5 Turbo 16K' }
+      ].map(model => ({
+        ...model,
+        provider: 'openai'
+      }))
+      
+      return NextResponse.json({ models })
     }
 
-    const models = await getProviderModels(provider)
-    
-    if (!models || models.length === 0) {
-      return NextResponse.json(
-        { error: 'No models found for this provider' },
-        { status: 404 }
-      )
+    if (provider === 'claude') {
+      if (!process.env.PROVIDER_CLAUDE_API_KEY) {
+        throw new Error('Missing PROVIDER_CLAUDE_API_KEY')
+      }
+
+      // Claude has a fixed set of models
+      const models = [
+        { id: 'claude-3-opus-20240229', name: 'Claude 3 Opus' },
+        { id: 'claude-3-sonnet-20240229', name: 'Claude 3 Sonnet' }
+      ].map(model => ({
+        ...model,
+        provider: 'claude'
+      }))
+
+      return NextResponse.json({ models })
     }
 
-    return NextResponse.json({ models })
+    return NextResponse.json({ error: 'Unsupported provider' }, { status: 400 })
   } catch (error) {
     console.error('Error fetching models:', error)
     return NextResponse.json(
