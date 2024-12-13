@@ -32,7 +32,7 @@ export async function GET(req: Request) {
     }
 
     return NextResponse.json({
-      models: models.map(model => ({
+      models: (models || []).map(model => ({
         id: model.model_id,
         name: model.display_name,
         description: model.description,
