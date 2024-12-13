@@ -70,9 +70,9 @@ export async function POST(request: Request) {
         response = await openai.chat.completions.create({
           model: body.model,
           messages: body.messages.map(m => ({
-            role: m.role as ChatCompletionMessageParam['role'],
+            role: m.role as 'user' | 'assistant' | 'system',
             content: m.content
-          }))
+          })) satisfies ChatCompletionMessageParam[]
         })
 
         return NextResponse.json({

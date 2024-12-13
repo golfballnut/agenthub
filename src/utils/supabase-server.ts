@@ -1,18 +1,10 @@
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
-import { Database } from '@/types/supabase'
+import type { Database } from '../types/supabase'
 
 export function createServerClient() {
+  const cookieStore = cookies()
   return createRouteHandlerClient<Database>({ 
-    cookies,
-  }, {
-    options: {
-      global: {
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json'
-        }
-      }
-    }
+    cookies: () => cookieStore 
   })
 } 

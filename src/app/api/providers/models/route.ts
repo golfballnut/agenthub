@@ -15,6 +15,7 @@ export async function GET(req: Request) {
 
     const supabase = createServerClient()
 
+    // Get models for provider
     const { data: models, error } = await supabase
       .from('llm_models')
       .select('model_id, display_name, description, supports_chat')
@@ -25,7 +26,10 @@ export async function GET(req: Request) {
 
     if (error) {
       console.error('Database error:', error)
-      throw error
+      return NextResponse.json(
+        { error: 'Failed to fetch models from database' },
+        { status: 500 }
+      )
     }
 
     return NextResponse.json({
