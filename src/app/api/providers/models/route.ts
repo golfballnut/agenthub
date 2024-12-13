@@ -15,10 +15,9 @@ export async function GET(req: Request) {
 
     const supabase = createServerClient()
 
-    // Get models for provider
     const { data: models, error } = await supabase
       .from('llm_models')
-      .select('model_id, display_name, description, supports_chat')
+      .select('model_id, display_name, description')
       .eq('provider', provider)
       .eq('active', true)
       .eq('supports_chat', true)
@@ -33,7 +32,7 @@ export async function GET(req: Request) {
     }
 
     return NextResponse.json({
-      models: (models || []).map(model => ({
+      models: models.map(model => ({
         id: model.model_id,
         name: model.display_name,
         description: model.description,
