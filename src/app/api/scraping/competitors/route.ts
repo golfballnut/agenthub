@@ -1,54 +1,43 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
+import { createRouteHandlerClient, createServerComponentClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 import { authOptions } from '../../auth/[...nextauth]/route'
 import type { Database } from '@/types/supabase'
 
-export async function GET(request: Request) {
+export async function GET() {
   try {
-    // Get session using NextAuth
     const session = await getServerSession(authOptions)
-    if (!session) {
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // Create Supabase client with session
-    const supabase = createRouteHandlerClient<Database>({ cookies })
-
-    const { searchParams } = new URL(request.url)
-    const limit = searchParams.get('limit')
-    
-    const query = supabase
+    const supabase = createServerComponentClient<Database>({ cookies })
+    const { data, error } = await supabase
       .from('competitors')
       .select('*')
       .eq('user_id', session.user.id)
       .order('created_at', { ascending: false })
 
-    if (limit) {
-      query.limit(parseInt(limit))
-    }
-
-    const { data, error } = await query
     if (error) throw error
-
     return NextResponse.json(data)
   } catch (error) {
     console.error('Error:', error)
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to fetch competitors' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: 'Failed to fetch data' }, { status: 500 })
   }
 }
 
 export async function POST(request: Request) {
   try {
-    const cookieStore = cookies();
-    const supabase = createRouteHandlerClient<Database>({ cookies: () => cookieStore });
+    const session = await getServerSession(authOptions)
+    if (!session?.user?.id) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
+    const supabase = createServerComponentClient<Database>({ cookies })
     
     // Verify authentication
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
     if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
