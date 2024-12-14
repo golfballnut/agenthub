@@ -1,370 +1,177 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
-import { 
-  PlusIcon, 
-  PencilIcon, 
-  TrashIcon,
-  ArrowPathIcon,
-} from '@heroicons/react/24/outline'
+import { toast } from 'sonner'
+import { PlusIcon, TrashIcon, PencilIcon } from '@heroicons/react/24/outline'
+import Competitors from './competitors'
 
-interface Category {
+const tabs = [
+  { name: 'Competitors', component: Competitors },
+  { name: 'Conditions', component: () => <div>Conditions coming soon...</div> },
+  { name: 'Product Matches', component: () => <div>Product matches coming soon...</div> }
+]
+
+interface Competitor {
   id: string
   name: string
-  description: string | null
+  website_url: string | null
   created_at: string
-  scraping_targets: Target[]
 }
 
-interface Target {
-  id: string
-  category_id: string
-  url: string
-  notes: string | null
-  created_at: string
+interface Metrics {
+  totalCompetitors: number
+  totalConditions: number
+  totalMatches: number
 }
 
 export default function ScrapingPage() {
-  const [categories, setCategories] = useState<Category[]>([])
+  const [activeTab, setActiveTab] = useState(0)
+  const [competitors, setCompetitors] = useState<Competitor[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [showNewCategory, setShowNewCategory] = useState(false)
-  const [showNewTarget, setShowNewTarget] = useState<string | null>(null) // category_id or null
-  const [saving, setSaving] = useState(false)
-  const supabase = createClientComponentClient()
-
-  // Form states
-  const [newCategoryName, setNewCategoryName] = useState('')
-  const [newCategoryDesc, setNewCategoryDesc] = useState('')
-  const [newTargetUrl, setNewTargetUrl] = useState('')
-  const [newTargetNotes, setNewTargetNotes] = useState('')
+  const [metrics, setMetrics] = useState<Metrics>({
+    totalCompetitors: 0,
+    totalConditions: 0,
+    totalMatches: 0
+  })
 
   useEffect(() => {
-    fetchCategories()
+    fetchCompetitors()
+    fetchMetrics()
   }, [])
 
-  const fetchCategories = async () => {
+  const fetchMetrics = async () => {
     try {
-      const { data, error: fetchError } = await supabase
-        .from('scraping_categories')
-        .select(`
-          *,
-          scraping_targets (*)
-        `)
-        .order('created_at', { ascending: false })
+      const response = await fetch('/api/scraping/metrics')
+      if (!response.ok) throw new Error('Failed to fetch metrics')
+      const data = await response.json()
+      setMetrics(data)
+    } catch (error) {
+      console.error('Error:', error)
+      toast.error('Failed to load metrics')
+    }
+  }
 
-      if (fetchError) throw fetchError
-
-      setCategories(data || [])
-    } catch (err) {
-      console.error('Error fetching categories:', err)
-      setError('Failed to load categories')
+  const fetchCompetitors = async () => {
+    try {
+      const response = await fetch('/api/scraping/competitors')
+      if (!response.ok) throw new Error('Failed to fetch competitors')
+      const data = await response.json()
+      setCompetitors(data)
+    } catch (error) {
+      console.error('Error:', error)
+      toast.error('Failed to load competitors')
     } finally {
       setLoading(false)
     }
   }
 
-  const handleCreateCategory = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!newCategoryName.trim()) return
-
-    setSaving(true)
-    try {
-      const response = await fetch('/api/scraping/categories', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name: newCategoryName,
-          description: newCategoryDesc,
-        }),
-      })
-
-      if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error || 'Failed to create category')
-      }
-
-      setNewCategoryName('')
-      setNewCategoryDesc('')
-      setShowNewCategory(false)
-      fetchCategories()
-    } catch (err) {
-      console.error('Error:', err)
-      setError(err instanceof Error ? err.message : 'Failed to create category')
-    } finally {
-      setSaving(false)
-    }
+  const handleEdit = (competitor: Competitor) => {
+    // Implement edit functionality
   }
 
-  const handleCreateTarget = async (categoryId: string, e: React.FormEvent) => {
-    e.preventDefault()
-    if (!newTargetUrl.trim()) return
-
-    setSaving(true)
-    try {
-      const response = await fetch('/api/scraping/targets', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          category_id: categoryId,
-          url: newTargetUrl,
-          notes: newTargetNotes,
-        }),
-      })
-
-      if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error || 'Failed to create target')
-      }
-
-      setNewTargetUrl('')
-      setNewTargetNotes('')
-      setShowNewTarget(null)
-      fetchCategories()
-    } catch (err) {
-      console.error('Error:', err)
-      setError(err instanceof Error ? err.message : 'Failed to create target')
-    } finally {
-      setSaving(false)
-    }
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    // Implement edit submit functionality
   }
 
-  const handleDeleteTarget = async (targetId: string) => {
-    if (!confirm('Are you sure you want to delete this target?')) return
-
-    try {
-      const response = await fetch(`/api/scraping/targets?id=${targetId}`, {
-        method: 'DELETE',
-      })
-
-      if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error || 'Failed to delete target')
-      }
-
-      fetchCategories()
-    } catch (err) {
-      console.error('Error:', err)
-      setError(err instanceof Error ? err.message : 'Failed to delete target')
-    }
+  const handleDelete = async (id: string) => {
+    // Implement delete functionality
   }
 
   if (loading) {
-    return (
-      <div className="p-4">
-        <div className="animate-pulse text-white/60">Loading categories...</div>
-      </div>
-    )
+    return <div className="animate-pulse">Loading competitors...</div>
   }
 
   return (
-    <div className="space-y-8">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-white">Web Scraping</h1>
-          <p className="mt-1 text-white/60">
-            Manage your scraping categories and targets
-          </p>
-        </div>
-        <button
-          onClick={() => setShowNewCategory(true)}
-          className="bg-[#FFBE1A] text-black px-4 py-2 rounded-lg hover:bg-[#FFBE1A]/90 transition-colors flex items-center gap-2"
-        >
-          <PlusIcon className="w-5 h-5" />
-          New Category
-        </button>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold">Web Scraping</h1>
+        <p className="mt-1 text-gray-400">
+          Manage your competitors, conditions, and product matches
+        </p>
       </div>
 
-      {/* Error Message */}
-      {error && (
-        <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-4 text-red-500">
-          {error}
+      {/* Metrics Display */}
+      <div className="grid grid-cols-3 gap-4">
+        <div className="bg-[#111111] border border-white/5 rounded-xl p-4">
+          <p className="text-sm text-gray-400">Total Competitors</p>
+          <p className="text-xl font-bold">{metrics.totalCompetitors}</p>
         </div>
-      )}
-
-      {/* New Category Form */}
-      {showNewCategory && (
-        <div className="bg-[#111111] border border-white/5 rounded-xl p-6">
-          <h2 className="text-lg font-medium text-white mb-4">Create New Category</h2>
-          <form onSubmit={handleCreateCategory} className="space-y-4">
-            <div>
-              <label htmlFor="name" className="block text-sm font-medium text-white mb-2">
-                Name
-              </label>
-              <input
-                type="text"
-                id="name"
-                value={newCategoryName}
-                onChange={(e) => setNewCategoryName(e.target.value)}
-                className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white placeholder-white/40"
-                placeholder="Enter category name"
-              />
-            </div>
-            <div>
-              <label htmlFor="description" className="block text-sm font-medium text-white mb-2">
-                Description
-              </label>
-              <textarea
-                id="description"
-                value={newCategoryDesc}
-                onChange={(e) => setNewCategoryDesc(e.target.value)}
-                className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white placeholder-white/40"
-                placeholder="Enter category description"
-                rows={3}
-              />
-            </div>
-            <div className="flex justify-end gap-4">
-              <button
-                type="button"
-                onClick={() => setShowNewCategory(false)}
-                className="px-4 py-2 rounded-lg font-medium transition-colors bg-white/5 text-white hover:bg-white/10"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={saving}
-                className="bg-[#FFBE1A] text-black px-4 py-2 rounded-lg hover:bg-[#FFBE1A]/90 transition-colors flex items-center gap-2"
-              >
-                {saving ? (
-                  <ArrowPathIcon className="w-5 h-5 animate-spin" />
-                ) : (
-                  'Create Category'
-                )}
-              </button>
-            </div>
-          </form>
+        <div className="bg-[#111111] border border-white/5 rounded-xl p-4">
+          <p className="text-sm text-gray-400">Total Conditions</p>
+          <p className="text-xl font-bold">{metrics.totalConditions}</p>
         </div>
-      )}
+        <div className="bg-[#111111] border border-white/5 rounded-xl p-4">
+          <p className="text-sm text-gray-400">Total Matches</p>
+          <p className="text-xl font-bold">{metrics.totalMatches}</p>
+        </div>
+      </div>
 
-      {/* Categories List */}
-      <div className="space-y-6">
-        {categories.length === 0 ? (
-          <div className="bg-[#111111] border border-white/5 rounded-xl p-6 text-center text-white/60">
-            No categories yet. Create your first category to get started.
-          </div>
-        ) : (
-          categories.map((category) => (
-            <div
-              key={category.id}
-              className="bg-[#111111] border border-white/5 rounded-xl p-6"
+      <div className="w-full">
+        <nav className="flex space-x-1 bg-white/5 p-1 rounded-lg">
+          {tabs.map((tab, idx) => (
+            <button
+              key={idx}
+              onClick={() => setActiveTab(idx)}
+              className={`w-full py-2.5 text-sm font-medium leading-5 rounded-lg focus:outline-none focus:ring-2 ring-offset-2 ring-offset-blue-400 ring-white ring-opacity-60 ${
+                activeTab === idx 
+                  ? 'bg-white/[0.12] shadow text-white'
+                  : 'text-gray-400 hover:bg-white/[0.12] hover:text-white'
+              }`}
             >
-              <div className="flex items-start justify-between mb-4">
-                <div>
-                  <h3 className="text-lg font-medium text-white">
-                    {category.name}
-                  </h3>
-                  {category.description && (
-                    <p className="mt-1 text-white/60">{category.description}</p>
-                  )}
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setShowNewTarget(category.id)}
-                    className="px-4 py-2 rounded-lg font-medium transition-colors bg-white/5 text-white hover:bg-white/10 flex items-center gap-2"
-                  >
-                    <PlusIcon className="w-5 h-5" />
-                    Add Target
-                  </button>
-                </div>
-              </div>
-
-              {/* New Target Form */}
-              {showNewTarget === category.id && (
-                <div className="mb-6 pt-4 border-t border-white/5">
-                  <form onSubmit={(e) => handleCreateTarget(category.id, e)} className="space-y-4">
-                    <div>
-                      <label htmlFor="url" className="block text-sm font-medium text-white mb-2">
-                        URL
-                      </label>
-                      <input
-                        type="url"
-                        id="url"
-                        value={newTargetUrl}
-                        onChange={(e) => setNewTargetUrl(e.target.value)}
-                        className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white placeholder-white/40"
-                        placeholder="Enter target URL"
-                      />
-                    </div>
-                    <div>
-                      <label htmlFor="notes" className="block text-sm font-medium text-white mb-2">
-                        Notes
-                      </label>
-                      <textarea
-                        id="notes"
-                        value={newTargetNotes}
-                        onChange={(e) => setNewTargetNotes(e.target.value)}
-                        className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-2 text-white placeholder-white/40"
-                        placeholder="Enter notes about this target"
-                        rows={2}
-                      />
-                    </div>
-                    <div className="flex justify-end gap-4">
-                      <button
-                        type="button"
-                        onClick={() => setShowNewTarget(null)}
-                        className="px-4 py-2 rounded-lg font-medium transition-colors bg-white/5 text-white hover:bg-white/10"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="submit"
-                        disabled={saving}
-                        className="bg-[#FFBE1A] text-black px-4 py-2 rounded-lg hover:bg-[#FFBE1A]/90 transition-colors flex items-center gap-2"
-                      >
-                        {saving ? (
-                          <ArrowPathIcon className="w-5 h-5 animate-spin" />
-                        ) : (
-                          'Add Target'
-                        )}
-                      </button>
-                    </div>
-                  </form>
-                </div>
-              )}
-
-              {/* Targets List */}
-              {category.scraping_targets && category.scraping_targets.length > 0 ? (
-                <div className="space-y-3">
-                  {category.scraping_targets.map((target) => (
-                    <div
-                      key={target.id}
-                      className="flex items-start justify-between bg-white/5 rounded-lg p-3"
-                    >
-                      <div>
-                        <a
-                          href={target.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-[#FFBE1A] hover:underline"
-                        >
-                          {target.url}
-                        </a>
-                        {target.notes && (
-                          <p className="mt-1 text-sm text-white/60">{target.notes}</p>
-                        )}
-                      </div>
-                      <button
-                        onClick={() => handleDeleteTarget(target.id)}
-                        className="text-white/40 hover:text-red-500 transition-colors"
-                      >
-                        <TrashIcon className="w-5 h-5" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-white/40">No targets in this category yet</p>
-              )}
+              {tab.name}
+            </button>
+          ))}
+        </nav>
+        
+        <div className="mt-2">
+          {tabs.map((tab, idx) => (
+            <div
+              key={idx}
+              className={`rounded-lg bg-white/5 p-6 ${activeTab === idx ? 'block' : 'hidden'}`}
+            >
+              <tab.component />
             </div>
-          ))
-        )}
+          ))}
+        </div>
+
+        {/* Competitors List with Edit */}
+        <div className="grid gap-4 mt-4">
+          {competitors.map(competitor => (
+            <div 
+              key={competitor.id}
+              className="flex justify-between items-center bg-white/5 p-4 rounded-lg"
+            >
+              {/* Implement edit form or button */}
+              <div>
+                <h3 className="font-medium">{competitor.name}</h3>
+                {competitor.website_url && (
+                  <a 
+                    href={competitor.website_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-blue-400 hover:underline"
+                  >
+                    {competitor.website_url}
+                  </a>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => handleEdit(competitor)}
+                  className="p-2 text-gray-400 hover:text-blue-500"
+                >
+                  <PencilIcon className="w-5 h-5" />
+                </button>
+                <button
+                  onClick={() => handleDelete(competitor.id)}
+                  className="p-2 text-gray-400 hover:text-red-500"
+                >
+                  <TrashIcon className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   )
