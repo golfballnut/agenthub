@@ -2,9 +2,8 @@
 
 import { useSession } from 'next-auth/react'
 import { redirect } from 'next/navigation'
-import Sidebar from '../../components/dashboard/Sidebar'
 
-export default function DashboardLayout({
+export default function ProfileLayout({
   children,
 }: {
   children: React.ReactNode
@@ -20,11 +19,9 @@ export default function DashboardLayout({
   }
 
   return (
-    <div className="flex min-h-screen">
-      <Sidebar />
-      <main className="flex-1 p-6 bg-primary">
-        {children}
-      </main>
+    <div className="max-w-7xl mx-auto">
+      <h1 className="text-2xl font-bold mb-6">Profile Settings</h1>
+      {children}
     </div>
   )
 } 

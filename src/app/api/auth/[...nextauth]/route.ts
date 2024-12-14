@@ -3,8 +3,9 @@ import { SupabaseAdapter } from '@auth/supabase-adapter'
 import type { NextAuthOptions } from 'next-auth'
 import CredentialsProvider from 'next-auth/providers/credentials'
 import { createClient } from '@supabase/supabase-js'
+import type { Database } from '@/types/supabase'
 
-const supabase = createClient(
+const supabase = createClient<Database>(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 )
@@ -27,6 +28,28 @@ export const authOptions: NextAuthOptions = {
         })
 
         if (error || !user) return null
+
+        // Create profile if it doesn't exist
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select()
+          .eq('id', user.id)
+          .single()
+
+        if (!profile) {
+          await supabase
+            .from('profiles')
+            .insert([{ 
+              id: user.id,
+              full_name: user.email?.split('@')[0] || '',
+              username: user.email?.split('@')[0] || '',
+              avatar_url: null,
+              updated_at: new Date().toISOString()
+            }])
+            .select()
+            .single()
+        }
+
         return {
           id: user.id,
           email: user.email,
@@ -48,11 +71,7 @@ export const authOptions: NextAuthOptions = {
       }
       return token
     }
-  },
-  adapter: SupabaseAdapter({
-    url: process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    secret: process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  })
+  }
 }
 
 const handler = NextAuth(authOptions)

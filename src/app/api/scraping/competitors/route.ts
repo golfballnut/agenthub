@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
-import { createRouteHandlerClient, createServerComponentClient } from '@supabase/auth-helpers-nextjs'
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 import { authOptions } from '../../auth/[...nextauth]/route'
 import type { Database } from '@/types/supabase'
+
+export const dynamic = 'force-dynamic'
 
 export async function GET() {
   try {
@@ -12,7 +14,10 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const supabase = createServerComponentClient<Database>({ cookies })
+    const supabase = createRouteHandlerClient<Database>({ 
+      cookies: () => cookies()
+    })
+
     const { data, error } = await supabase
       .from('competitors')
       .select('*')
@@ -34,19 +39,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const supabase = createServerComponentClient<Database>({ cookies })
-    
-    // Verify authentication
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const cookieStore = cookies()
+    const supabase = createRouteHandlerClient<Database>({ 
+      cookies: () => cookieStore 
+    })
 
-    const body = await request.json();
-    const { name, website_url } = body;
+    const body = await request.json()
+    const { name, website_url } = body
 
     if (!name?.trim()) {
-      return NextResponse.json({ error: 'Name is required' }, { status: 400 });
+      return NextResponse.json({ error: 'Name is required' }, { status: 400 })
     }
     
     const { data, error } = await supabase
@@ -54,20 +56,16 @@ export async function POST(request: Request) {
       .insert([{ 
         name, 
         website_url,
-        user_id: user.id 
+        user_id: session.user.id 
       }])
       .select()
-      .single();
+      .single()
       
-    if (error) {
-      console.error('Database error:', error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-    
-    return NextResponse.json(data, { status: 201 });
-  } catch (err) {
-    console.error('Server error:', err);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    if (error) throw error
+    return NextResponse.json(data, { status: 201 })
+  } catch (error) {
+    console.error('Error:', error)
+    return NextResponse.json({ error: 'Failed to create competitor' }, { status: 500 })
   }
 }
 
