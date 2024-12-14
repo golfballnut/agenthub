@@ -5,6 +5,12 @@ import { cookies } from 'next/headers'
 import { authOptions } from '../../auth/[...nextauth]/route'
 import type { Database } from '@/types/supabase'
 
+type CompetitorInsert = {
+  name: string
+  website_url: string | null
+  user_id: string
+}
+
 export async function GET() {
   try {
     const session = await getServerSession(authOptions)
@@ -12,8 +18,9 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const supabase = createRouteHandlerClient<Database>({ 
-      cookies: () => cookies()
+    const cookieStore = cookies()
+    const supabase = createRouteHandlerClient<Database>({
+      cookies: () => cookieStore
     })
 
     const { data, error } = await supabase
@@ -37,8 +44,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const supabase = createRouteHandlerClient<Database>({ 
-      cookies: () => cookies()
+    const cookieStore = cookies()
+    const supabase = createRouteHandlerClient<Database>({
+      cookies: () => cookieStore
     })
 
     const body = await request.json()
@@ -48,13 +56,15 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Name is required' }, { status: 400 })
     }
     
+    const insertData: CompetitorInsert = {
+      name: name.trim(),
+      website_url: website_url?.trim() || null,
+      user_id: session.user.id
+    }
+    
     const { data, error } = await supabase
       .from('competitors')
-      .insert([{ 
-        name, 
-        website_url,
-        user_id: session.user.id 
-      }])
+      .insert([insertData])
       .select()
       .single()
       
