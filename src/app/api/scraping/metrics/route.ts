@@ -12,9 +12,8 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const cookieStore = await cookies()
     const supabase = createRouteHandlerClient<Database>({ 
-      cookies: () => new Promise((resolve) => resolve(cookies()))
+      cookies: () => cookies()
     })
 
     const [

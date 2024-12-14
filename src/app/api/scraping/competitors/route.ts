@@ -1,10 +1,9 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
-import { createServerClient } from '@/utils/supabase-server'
-import { authOptions } from '../../auth/[...nextauth]/route'
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies, type UnsafeUnwrappedCookies } from 'next/headers'
-import { Database } from '@/types/supabase'
+import { cookies } from 'next/headers'
+import { authOptions } from '../../auth/[...nextauth]/route'
+import type { Database } from '@/types/supabase'
 
 export async function GET() {
   try {
@@ -14,7 +13,7 @@ export async function GET() {
     }
 
     const supabase = createRouteHandlerClient<Database>({ 
-      cookies: () => Promise.resolve(cookies())
+      cookies: () => cookies()
     })
 
     const { data, error } = await supabase
@@ -39,7 +38,7 @@ export async function POST(request: Request) {
     }
 
     const supabase = createRouteHandlerClient<Database>({ 
-      cookies: () => Promise.resolve(cookies())
+      cookies: () => cookies()
     })
 
     const body = await request.json()
@@ -70,7 +69,7 @@ export async function POST(request: Request) {
 export async function DELETE(request: Request) {
   try {
     const supabase = createRouteHandlerClient<Database>({ 
-      cookies: () => Promise.resolve(cookies())
+      cookies: () => cookies()
     })
     
     // Verify authentication
