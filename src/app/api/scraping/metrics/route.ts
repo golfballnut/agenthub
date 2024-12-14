@@ -5,8 +5,6 @@ import { cookies } from 'next/headers'
 import { authOptions } from '../../auth/[...nextauth]/route'
 import type { Database } from '@/types/supabase'
 
-export const dynamic = 'force-dynamic'
-
 export async function GET() {
   try {
     const session = await getServerSession(authOptions)
@@ -14,8 +12,9 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const cookieStore = await cookies()
     const supabase = createRouteHandlerClient<Database>({ 
-      cookies: () => cookies()
+      cookies: () => new Promise((resolve) => resolve(cookies()))
     })
 
     const [

@@ -3,6 +3,7 @@
 import React, { useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { ChartBarIcon, ClockIcon, TagIcon } from '@heroicons/react/24/outline'
+import Competitors from './components/competitors'
 
 // Placeholder stats
 const stats = [
@@ -12,12 +13,7 @@ const stats = [
 ]
 
 const tabs = [
-  { name: 'Competitors', component: () => (
-    <div className="text-center py-8">
-      <h2 className="text-xl font-semibold mb-4">Competitor Tracking</h2>
-      <p className="text-gray-400">Monitor your competitors' products and pricing (Coming Soon)</p>
-    </div>
-  )},
+  { name: 'Competitors', component: Competitors },
   { name: 'Conditions', component: () => (
     <div className="text-center py-8">
       <h2 className="text-xl font-semibold mb-4">Scraping Conditions</h2>

@@ -1,11 +1,10 @@
 import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
+import { createServerClient } from '@/utils/supabase-server'
 import { authOptions } from '../../auth/[...nextauth]/route'
-import type { Database } from '@/types/supabase'
-
-export const dynamic = 'force-dynamic'
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
+import { cookies, type UnsafeUnwrappedCookies } from 'next/headers'
+import { Database } from '@/types/supabase'
 
 export async function GET() {
   try {
@@ -15,7 +14,7 @@ export async function GET() {
     }
 
     const supabase = createRouteHandlerClient<Database>({ 
-      cookies: () => cookies()
+      cookies: () => Promise.resolve(cookies())
     })
 
     const { data, error } = await supabase
@@ -39,9 +38,8 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const cookieStore = cookies()
     const supabase = createRouteHandlerClient<Database>({ 
-      cookies: () => cookieStore 
+      cookies: () => Promise.resolve(cookies())
     })
 
     const body = await request.json()
@@ -71,8 +69,9 @@ export async function POST(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
-    const cookieStore = cookies();
-    const supabase = createRouteHandlerClient<Database>({ cookies: () => cookieStore });
+    const supabase = createRouteHandlerClient<Database>({ 
+      cookies: () => Promise.resolve(cookies())
+    })
     
     // Verify authentication
     const { data: { user }, error: authError } = await supabase.auth.getUser();
