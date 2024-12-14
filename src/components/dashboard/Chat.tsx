@@ -62,19 +62,35 @@ export default function Chat() {
   async function loadModels() {
     try {
       setIsLoadingModels(true)
-      // Load models for each provider
-      const providers = ['openai', 'claude']
-      const providerData = await Promise.all(
-        providers.map(async (provider) => {
-          const response = await fetch(`/api/providers/models?provider=${provider}`)
-          if (!response.ok) throw new Error(`Failed to fetch ${provider} models`)
-          const data = await response.json()
-          return {
-            name: provider,
-            models: data.models
-          }
-        })
-      )
+      
+      // Get models directly from Supabase
+      const { data: models, error } = await supabase
+        .from('llm_models')
+        .select('*')
+        .order('display_name')
+
+      if (error) throw error
+
+      // Group models by provider
+      const providerData = models.reduce((acc: Provider[], model) => {
+        const provider = acc.find(p => p.name === model.provider)
+        const modelData = {
+          id: model.model_id,
+          name: model.display_name,
+          description: model.description || '',
+          provider: model.provider
+        }
+
+        if (provider) {
+          provider.models.push(modelData)
+        } else {
+          acc.push({
+            name: model.provider,
+            models: [modelData]
+          })
+        }
+        return acc
+      }, [])
 
       setProviders(providerData.filter(p => p.models.length > 0))
       
